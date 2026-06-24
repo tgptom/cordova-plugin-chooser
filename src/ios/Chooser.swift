@@ -1,6 +1,7 @@
 import UIKit
 import MobileCoreServices
 import Foundation
+import UniformTypeIdentifiers
 
 
 class ChooserUIDocumentPickerViewController : UIDocumentPickerViewController {
@@ -12,23 +13,38 @@ class Chooser : CDVPlugin {
 	var commandCallback: String?
 
 	func callPicker (includeData: Bool, utis: [String]) {
-		let picker = ChooserUIDocumentPickerViewController(documentTypes: utis, in: .import)
+		let picker: ChooserUIDocumentPickerViewController
+
+		if #available(iOS 14.0, *) {
+			let contentTypes: [UTType] = utis.map { UTType($0) ?? .item }
+			picker = ChooserUIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
+		} else {
+			picker = ChooserUIDocumentPickerViewController(documentTypes: utis, in: .import)
+		}
+
 		picker.delegate = self
 		picker.includeData = includeData
 		self.viewController.present(picker, animated: true, completion: nil)
 	}
 
 	func detectMimeType (_ url: URL) -> String {
-		if let uti = UTTypeCreatePreferredIdentifierForTag(
-			kUTTagClassFilenameExtension,
-			url.pathExtension as CFString,
-			nil
-		)?.takeRetainedValue() {
-			if let mimetype = UTTypeCopyPreferredTagWithClass(
-				uti,
-				kUTTagClassMIMEType
-			)?.takeRetainedValue() as String? {
-				return mimetype
+		if #available(iOS 14.0, *) {
+			if let utType = UTType(filenameExtension: url.pathExtension),
+			   let mimeType = utType.preferredMIMEType {
+				return mimeType
+			}
+		} else {
+			if let uti = UTTypeCreatePreferredIdentifierForTag(
+				kUTTagClassFilenameExtension,
+				url.pathExtension as CFString,
+				nil
+			)?.takeRetainedValue() {
+				if let mimetype = UTTypeCopyPreferredTagWithClass(
+					uti,
+					kUTTagClassMIMEType
+				)?.takeRetainedValue() as String? {
+					return mimetype
+				}
 			}
 		}
 
@@ -93,37 +109,67 @@ class Chooser : CDVPlugin {
 		let includeData = command.arguments.last as! Bool
 		let mimeTypes = accept.components(separatedBy: ",")
 
-		let utis = mimeTypes.map { (mimeType: String) -> String in
-			switch mimeType {
-				case "audio/*":
-					return kUTTypeAudio as String
-				case "font/*":
-					return "public.font"
-				case "image/*":
-					return kUTTypeImage as String
-				case "text/*":
-					return kUTTypeText as String
-				case "video/*":
-					return kUTTypeVideo as String
-				default:
-					break
-			}
+		let utis: [String]
 
-			if mimeType.range(of: "*") == nil {
-				let utiUnmanaged = UTTypeCreatePreferredIdentifierForTag(
-					kUTTagClassMIMEType,
-					mimeType as CFString,
-					nil
-				)
+		if #available(iOS 14.0, *) {
+			utis = mimeTypes.map { (mimeType: String) -> String in
+				switch mimeType {
+					case "audio/*":
+						return UTType.audio.identifier
+					case "font/*":
+						return UTType.font.identifier
+					case "image/*":
+						return UTType.image.identifier
+					case "text/*":
+						return UTType.text.identifier
+					case "video/*":
+						return UTType.video.identifier
+					default:
+						break
+				}
 
-				if let uti = utiUnmanaged?.takeRetainedValue() as String? {
-					if !uti.hasPrefix("dyn.") {
-						return uti
+				if !mimeType.contains("*") {
+					if let utType = UTType(mimeType: mimeType),
+					   !utType.identifier.hasPrefix("dyn.") {
+						return utType.identifier
 					}
 				}
-			}
 
-			return kUTTypeItem as String
+				return UTType.item.identifier
+			}
+		} else {
+			utis = mimeTypes.map { (mimeType: String) -> String in
+				switch mimeType {
+					case "audio/*":
+						return kUTTypeAudio as String
+					case "font/*":
+						return "public.font"
+					case "image/*":
+						return kUTTypeImage as String
+					case "text/*":
+						return kUTTypeText as String
+					case "video/*":
+						return kUTTypeVideo as String
+					default:
+						break
+				}
+
+				if !mimeType.contains("*") {
+					let utiUnmanaged = UTTypeCreatePreferredIdentifierForTag(
+						kUTTagClassMIMEType,
+						mimeType as CFString,
+						nil
+					)
+
+					if let uti = utiUnmanaged?.takeRetainedValue() as String? {
+						if !uti.hasPrefix("dyn.") {
+							return uti
+						}
+					}
+				}
+
+				return kUTTypeItem as String
+			}
 		}
 
 		self.callPicker(includeData: includeData, utis: utis)
@@ -151,7 +197,6 @@ class Chooser : CDVPlugin {
 }
 
 extension Chooser : UIDocumentPickerDelegate {
-	@available(iOS 11.0, *)
 	func documentPicker (
 		_ controller: UIDocumentPickerViewController,
 		didPickDocumentsAt urls: [URL]

@@ -5,6 +5,7 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.MediaStore;
 import android.util.Base64;
 
@@ -58,9 +59,9 @@ public class Chooser extends CordovaPlugin {
 
 
 	private CallbackContext callback;
-	private Boolean includeData;
+	private boolean includeData;
 
-	public void chooseFile (CallbackContext callbackContext, String accept, Boolean includeData) {
+	public void chooseFile (CallbackContext callbackContext, String accept, boolean includeData) {
 		Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
 		intent.setType("*/*");
 		if (!accept.equals("*/*")) {
@@ -93,10 +94,23 @@ public class Chooser extends CordovaPlugin {
 			}
 		}
 		catch (JSONException err) {
-			this.callback.error("Execute failed: " + err.toString());
+			callbackContext.error("Execute failed: " + err.toString());
 		}
 
 		return false;
+	}
+
+	@Override
+	public Bundle onSaveInstanceState () {
+		Bundle state = new Bundle();
+		state.putBoolean("includeData", this.includeData);
+		return state;
+	}
+
+	@Override
+	public void onRestoreStateForActivityResult (Bundle state, CallbackContext callbackContext) {
+		this.includeData = state.getBoolean("includeData", false);
+		this.callback = callbackContext;
 	}
 
 	@Override
@@ -104,7 +118,7 @@ public class Chooser extends CordovaPlugin {
 		try {
 			if (requestCode == Chooser.PICK_FILE_REQUEST && this.callback != null) {
 				if (resultCode == Activity.RESULT_OK) {
-					Uri uri = data.getData();
+					Uri uri = data != null ? data.getData() : null;
 
 					if (uri != null) {
 						ContentResolver contentResolver =
@@ -121,10 +135,12 @@ public class Chooser extends CordovaPlugin {
 						String base64 = "";
 
 						if (this.includeData) {
-							byte[] bytes = Chooser.getBytesFromInputStream(
-								contentResolver.openInputStream(uri)
-							);
-
+							InputStream inputStream = contentResolver.openInputStream(uri);
+							if (inputStream == null) {
+								this.callback.error("Failed to open file stream.");
+								return;
+							}
+							byte[] bytes = Chooser.getBytesFromInputStream(inputStream);
 							base64 = Base64.encodeToString(bytes, Base64.DEFAULT);
 						}
 
@@ -150,7 +166,9 @@ public class Chooser extends CordovaPlugin {
 			}
 		}
 		catch (Exception err) {
-			this.callback.error("Failed to read file: " + err.toString());
+			if (this.callback != null) {
+				this.callback.error("Failed to read file: " + err.toString());
+			}
 		}
 	}
 }
