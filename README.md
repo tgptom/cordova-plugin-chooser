@@ -10,9 +10,26 @@ Install with Cordova CLI:
 
 Supported Platforms:
 
-* Android
+* Android (cordova-android ≥ 10; tested with cordova-android 15)
 
-* iOS
+* iOS (cordova-ios ≥ 6; tested with cordova-ios 8 / Xcode 15+)
+
+## Platform Compatibility
+
+| Platform | Minimum | Tested |
+|---|---|---|
+| cordova-android | 10.0.0 | 15.x |
+| cordova-ios | 6.0.0 | 8.x |
+
+### iOS notes
+
+* The plugin uses `UniformTypeIdentifiers` (`UTType`) APIs on **iOS 14+** and falls back to the legacy `MobileCoreServices` APIs on **iOS 13**, so iOS 13 (the minimum for cordova-ios 8) remains supported.
+* On iOS 14+, `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:)` is used; iOS 13 uses the older `(documentTypes:in:)` initializer.
+
+### Android notes
+
+* Uses `Intent.ACTION_GET_CONTENT` with `ContentResolver` — compatible with Android scoped storage (API 29+).
+* The plugin saves/restores its pending-callback state via `onSaveInstanceState` / `onRestoreStateForActivityResult` so the picker result survives Activity recreation.
 
 ## API
 
