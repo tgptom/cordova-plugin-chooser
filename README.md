@@ -6,7 +6,7 @@ File chooser plugin for Cordova.
 
 Install with Cordova CLI:
 
-	$ cordova plugin add cordova-plugin-chooser
+	$ cordova plugin add https://github.com/tgptom/cordova-plugin-chooser
 
 Supported Platforms:
 
